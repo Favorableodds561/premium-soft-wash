@@ -1450,65 +1450,155 @@ function changeMonth(dir) {
 
 renderCal();
 
-// ─── LEAD TRACKER ───
-let leads = [
-  { name: 'Jennifer Davis', phone: '(561) 412-7893', service: 'House Washing', date: '2025-06-02', status: 'new' },
-  { name: 'Tony Marino', phone: '(561) 398-2241', service: 'Roof Cleaning', date: '2025-06-04', status: 'called' },
-  { name: 'Sandra Brooks', phone: '(772) 556-7100', service: 'Driveway & Concrete', date: '2025-06-05', status: 'booked' },
-  { name: 'Carlos Rivera', phone: '(561) 200-4850', service: 'Commercial Cleaning', date: '2025-06-06', status: 'closed' },
+// ─── PERSISTENT LEAD STORAGE (localStorage) ───
+const STORAGE_KEY = 'psw_leads';
+
+const DEFAULT_LEADS = [
+  { id: 1, name: 'Jennifer Davis', phone: '(561) 412-7893', email: '', service: 'House Washing', date: '2025-06-02', address: '', notes: 'Returning customer', status: 'new', submitted: '2025-06-02 9:14 AM' },
+  { id: 2, name: 'Tony Marino', phone: '(561) 398-2241', email: '', service: 'Roof Cleaning', date: '2025-06-04', address: '', notes: '', status: 'called', submitted: '2025-06-03 2:30 PM' },
+  { id: 3, name: 'Sandra Brooks', phone: '(772) 556-7100', email: '', service: 'Driveway & Concrete', date: '2025-06-05', address: '', notes: '', status: 'booked', submitted: '2025-06-04 11:00 AM' },
+  { id: 4, name: 'Carlos Rivera', phone: '(561) 200-4850', email: '', service: 'Commercial Cleaning', date: '2025-06-06', address: '', notes: 'Large property', status: 'closed', submitted: '2025-06-05 8:45 AM' },
 ];
 
-const names = ['Mike Johnson','Lisa Turner','Brian Hayes','Alicia Green','Robert Kim','Denise Ward'];
-const services = ['House Washing','Roof Cleaning','Driveway & Concrete','Window Cleaning','Gutter Cleaning'];
+function loadLeads() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+    // First time: seed with defaults and save
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_LEADS));
+    return DEFAULT_LEADS;
+  } catch(e) { return [...DEFAULT_LEADS]; }
+}
+
+function saveLeads() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(leads)); } catch(e) {}
+}
+
+function nextId() {
+  return leads.length > 0 ? Math.max(...leads.map(l => l.id || 0)) + 1 : 1;
+}
+
+let leads = loadLeads();
+let filterStatus = 'all';
 
 function renderLeads() {
   const tbody = document.getElementById('leads-tbody');
-  tbody.innerHTML = '';
-  leads.forEach((l, i) => {
-    tbody.innerHTML += `
-      <tr>
-        <td><strong>${l.name}</strong></td>
-        <td>${l.phone}</td>
-        <td>${l.service}</td>
-        <td>${l.date}</td>
-        <td><span class="status-badge status-${l.status}">${l.status}</span></td>
-        <td>
-          <button class="action-btn" onclick="cycleStatus(${i})">Update Status</button>
-          <button class="action-btn" onclick="callLead('${l.phone}')">📞 Call</button>
-        </td>
-      </tr>`;
+  const filtered = filterStatus === 'all' ? leads : leads.filter(l => l.status === filterStatus);
+  
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:40px; color:rgba(255,255,255,0.3); font-family:'Rajdhani',sans-serif; letter-spacing:2px;">NO LEADS FOUND</td></tr>`;
+  } else {
+    tbody.innerHTML = filtered.map((l, i) => {
+      const realIdx = leads.indexOf(l);
+      return `
+        <tr>
+          <td>
+            <strong>${l.name}</strong><br>
+            <span style="font-size:11px; color:rgba(255,255,255,0.4);">${l.submitted || ''}</span>
+          </td>
+          <td>
+            <a href="tel:${l.phone.replace(/\D/g,'')}" style="color:var(--blue); text-decoration:none;">${l.phone}</a>
+            ${l.email ? `<br><span style="font-size:11px; color:rgba(255,255,255,0.5);">${l.email}</span>` : ''}
+          </td>
+          <td>${l.service}</td>
+          <td>${l.date || '—'}</td>
+          <td>
+            <select class="status-select status-${l.status}" onchange="updateStatus(${realIdx}, this.value)" style="background:transparent; border:1px solid; border-radius:20px; padding:4px 10px; font-family:'Rajdhani',sans-serif; font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase; cursor:pointer; outline:none;">
+              <option value="new" ${l.status==='new'?'selected':''}>New</option>
+              <option value="called" ${l.status==='called'?'selected':''}>Called</option>
+              <option value="booked" ${l.status==='booked'?'selected':''}>Booked</option>
+              <option value="closed" ${l.status==='closed'?'selected':''}>Closed</option>
+            </select>
+          </td>
+          <td style="max-width:160px; font-size:12px; color:rgba(255,255,255,0.6);">${l.notes || '—'}</td>
+          <td>
+            <button class="action-btn" onclick="callLead('${l.phone}')">📞 Call</button>
+            <button class="action-btn" onclick="deleteLead(${realIdx})" style="border-color:rgba(255,45,155,0.4); color:var(--pink);">✕</button>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  // Color status selects
+  document.querySelectorAll('.status-select').forEach(sel => {
+    const colors = { new: '#ff2d9b', called: '#00c3ff', booked: '#00e87a', closed: '#ffd700' };
+    const c = colors[sel.value] || '#fff';
+    sel.style.color = c;
+    sel.style.borderColor = c;
   });
-  const statuses = leads.reduce((a, l) => {
-    a[l.status] = (a[l.status] || 0) + 1;
-    return a;
-  }, {});
+
+  // Stats (always from full leads array)
+  const statuses = leads.reduce((a, l) => { a[l.status] = (a[l.status]||0)+1; return a; }, {});
   document.getElementById('stat-total').textContent = leads.length;
   document.getElementById('stat-new').textContent = statuses.new || 0;
   document.getElementById('stat-booked').textContent = statuses.booked || 0;
   document.getElementById('stat-closed').textContent = statuses.closed || 0;
 }
 
-function cycleStatus(i) {
-  const order = ['new','called','booked','closed'];
-  const curr = order.indexOf(leads[i].status);
-  leads[i].status = order[(curr + 1) % order.length];
+function updateStatus(i, status) {
+  leads[i].status = status;
+  saveLeads();
   renderLeads();
+  showToast(`✅ Status updated to "${status}"`);
+}
+
+function deleteLead(i) {
+  if (!confirm(`Remove ${leads[i].name} from the tracker?`)) return;
+  leads.splice(i, 1);
+  saveLeads();
+  renderLeads();
+  showToast('🗑️ Lead removed.');
 }
 
 function callLead(phone) {
   window.location.href = `tel:${phone.replace(/\D/g, '')}`;
 }
 
-function addSampleLead() {
-  leads.unshift({
-    name: names[Math.floor(Math.random() * names.length)],
-    phone: `(561) ${Math.floor(100+Math.random()*900)}-${Math.floor(1000+Math.random()*9000)}`,
-    service: services[Math.floor(Math.random() * services.length)],
-    date: new Date().toISOString().split('T')[0],
-    status: 'new'
-  });
+function addLeadToTracker(lead) {
+  leads.unshift({ id: nextId(), submitted: new Date().toLocaleString('en-US', {month:'numeric',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}), ...lead });
+  saveLeads();
   renderLeads();
+}
+
+function addSampleLead() {
+  const names = ['Mike Johnson','Lisa Turner','Brian Hayes','Alicia Green','Robert Kim','Denise Ward'];
+  const services = ['House Washing','Roof Cleaning','Driveway & Concrete','Window Cleaning','Gutter Cleaning'];
+  addLeadToTracker({
+    name: names[Math.floor(Math.random()*names.length)],
+    phone: `(561) ${Math.floor(100+Math.random()*900)}-${Math.floor(1000+Math.random()*9000)}`,
+    email: '', service: services[Math.floor(Math.random()*services.length)],
+    date: new Date().toISOString().split('T')[0],
+    address: '', notes: '', status: 'new'
+  });
   showToast('✅ New lead added!');
+}
+
+// Filter buttons — inject after tracker header
+document.addEventListener('DOMContentLoaded', () => {
+  const filterBar = document.createElement('div');
+  filterBar.style.cssText = 'display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;';
+  filterBar.innerHTML = ['all','new','called','booked','closed'].map(s => `
+    <button onclick="setFilter('${s}')" id="filter-${s}" style="font-family:'Rajdhani',sans-serif; font-weight:700; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; padding:8px 18px; border-radius:20px; border:1px solid rgba(0,195,255,0.3); background:transparent; color:rgba(255,255,255,0.6); cursor:pointer; transition:all 0.2s;">${s}</button>
+  `).join('');
+  const tableWrap = document.querySelector('.leads-table-wrap');
+  if (tableWrap) tableWrap.parentNode.insertBefore(filterBar, tableWrap);
+  setFilter('all');
+});
+
+function setFilter(status) {
+  filterStatus = status;
+  document.querySelectorAll('[id^="filter-"]').forEach(b => {
+    b.style.background = 'transparent';
+    b.style.color = 'rgba(255,255,255,0.6)';
+    b.style.borderColor = 'rgba(0,195,255,0.3)';
+  });
+  const active = document.getElementById(`filter-${status}`);
+  if (active) {
+    active.style.background = 'rgba(0,195,255,0.15)';
+    active.style.color = 'var(--blue)';
+    active.style.borderColor = 'var(--blue)';
+  }
+  renderLeads();
 }
 
 renderLeads();
@@ -1531,32 +1621,38 @@ function submitModal() {
   const name = document.getElementById('m-name').value.trim();
   const phone = document.getElementById('m-phone').value.trim();
   if (!name || !phone) { showToast('⚠️ Name & phone required!'); return; }
-  leads.unshift({
-    name, phone,
+  addLeadToTracker({
+    name, phone, email: '',
     service: document.getElementById('m-service').value || 'General',
     date: document.getElementById('m-date').value || new Date().toISOString().split('T')[0],
-    status: 'new'
+    address: '', notes: 'Via quick quote bubble', status: 'new'
   });
-  renderLeads();
   closeModal();
-  showToast('🎉 Request received! We\'ll call you soon.');
+  showToast('🎉 Request saved! Check the Dashboard.');
+  ['m-name','m-phone','m-date'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('m-service').value = '';
 }
 
 // ─── MAIN FORM ───
 function submitForm() {
   const fname = document.getElementById('fname').value.trim();
   const phone = document.getElementById('phone').value.trim();
-  if (!fname || !phone) { showToast('⚠️ Please fill out required fields.'); return; }
-  leads.unshift({
+  if (!fname || !phone) { showToast('⚠️ Name & phone are required.'); return; }
+  addLeadToTracker({
     name: `${fname} ${document.getElementById('lname').value}`.trim(),
     phone,
+    email: document.getElementById('email').value.trim(),
     service: document.getElementById('service-select').value || 'General',
     date: document.getElementById('appt-date').value || new Date().toISOString().split('T')[0],
+    address: document.getElementById('address').value.trim(),
+    notes: document.getElementById('notes').value.trim(),
     status: 'new'
   });
-  renderLeads();
-  showToast('🎉 Appointment requested! We\'ll confirm within 24hrs.');
+  showToast('🎉 Appointment saved to Dashboard!');
   ['fname','lname','phone','email','address','notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('service-select').value = '';
+  document.getElementById('appt-date').value = '';
+  document.getElementById('appt-time').value = '';
 }
 
 // ─── TOAST ───
