@@ -51,6 +51,8 @@ body{font-family:'Exo 2',sans-serif;background:var(--darker);color:#fff;min-heig
 .add-btn:hover{transform:scale(1.05)}
 .exp-btn{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;padding:10px 22px;border-radius:20px;border:1px solid rgba(0,195,255,.3);background:transparent;color:var(--blue);cursor:pointer;transition:all .2s}
 .exp-btn:hover{background:rgba(0,195,255,.15)}
+.backup-btn{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;padding:10px 22px;border-radius:20px;border:1px solid rgba(0,230,122,.35);background:transparent;color:#00e87a;cursor:pointer;transition:all .2s}
+.backup-btn:hover{background:rgba(0,232,122,.12)}
 .table-wrap{border-radius:16px;border:1px solid rgba(0,195,255,.12);overflow:auto}
 table{width:100%;border-collapse:collapse;font-size:14px;min-width:820px}
 thead tr{background:rgba(0,195,255,.08)}
@@ -150,6 +152,7 @@ tbody td{padding:13px 18px;color:rgba(255,255,255,.85);vertical-align:middle}
       </div>
       <div class="toolbar-r">
         <button class="exp-btn" onclick="refreshLeads()">🔄 Refresh</button>
+        <button class="backup-btn" onclick="backupLeads()">💾 Backup All</button>
         <button class="exp-btn" onclick="exportCSV()">⬇ Export CSV</button>
         <button class="add-btn" onclick="openAdd()">+ Add Lead</button>
       </div>
@@ -341,6 +344,23 @@ function exportCSV(){
   a.download=`psw-leads-${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
   showToast('📥 CSV exported!');
+}
+
+function backupLeads(){
+  if(!leads.length){showToast('⚠️ No leads to backup.');return;}
+  const h=['ID','Name','Phone','Email','Service','Date','Time','Address','Status','Source','Notes','Callback','Timestamp'];
+  const rows=leads.map(l=>[
+    l.id,l.name,l.phone,l.email,l.service,l.date,l.time||'',l.address,l.status,l.source,l.notes,l.callback||'',l.ts
+  ].map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(','));
+  const csv=[h.join(','),...rows].join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`PSW-Leads-BACKUP-${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}.csv`;
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
+  showToast(`💾 Backup saved — ${leads.length} leads exported!`);
 }
 
 function refreshLeads(){
