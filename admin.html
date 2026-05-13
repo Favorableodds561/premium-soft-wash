@@ -149,6 +149,7 @@ tbody td{padding:13px 18px;color:rgba(255,255,255,.85);vertical-align:middle}
         <input class="search-in" type="text" id="srch" placeholder="Search name, phone, service…" oninput="renderLeads()">
       </div>
       <div class="toolbar-r">
+        <button class="exp-btn" onclick="refreshLeads()">🔄 Refresh</button>
         <button class="exp-btn" onclick="exportCSV()">⬇ Export CSV</button>
         <button class="add-btn" onclick="openAdd()">+ Add Lead</button>
       </div>
@@ -296,8 +297,9 @@ function setFilter(f,btn){
 function updStat(i,s){leads[i].status=s;save();renderLeads();showToast('✅ Status → '+s.toUpperCase());}
 
 function delL(i){
-  if(!confirm(`Remove "${leads[i].name}" from the tracker?`))return;
-  leads.splice(i,1);save();renderLeads();showToast('🗑️ Lead removed.');
+  const n=leads[i].name;
+  if(!confirm(`⚠️ DELETE "${n}" from the tracker?\n\nThis action is PERMANENT and cannot be undone.\n\nClick OK only if you are sure.`))return;
+  leads.splice(i,1);save();renderLeads();showToast('🗑️ Lead deleted.');
 }
 
 function callL(phone){window.location.href='tel:'+phone.replace(/\D/g,'');}
@@ -339,6 +341,12 @@ function exportCSV(){
   a.download=`psw-leads-${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
   showToast('📥 CSV exported!');
+}
+
+function refreshLeads(){
+  leads=load();
+  renderLeads();
+  showToast('🔄 Dashboard refreshed — ' + leads.length + ' leads loaded.');
 }
 
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3500);}
