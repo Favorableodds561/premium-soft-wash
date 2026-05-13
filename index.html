@@ -250,8 +250,27 @@ footer p{font-size:13px;color:rgba(255,255,255,.4);letter-spacing:1px}
 <div id="toast"></div>
 
 <script>
-// ── Paste your Google Apps Script URL here after setup ──
+// ── SHARED KEY — must match admin.html exactly ──
+const LEADS_KEY = 'psw_leads_v3';
 const SHEET_URL = 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
+
+// Save lead to localStorage (same store admin reads)
+function saveLeadLocally(lead){
+  try{
+    const raw=localStorage.getItem(LEADS_KEY);
+    const leads=raw?JSON.parse(raw):[];
+    const newId=leads.length>0?Math.max(...leads.map(l=>l.id||0))+1:1;
+    leads.unshift({id:newId,...lead});
+    localStorage.setItem(LEADS_KEY,JSON.stringify(leads));
+    return true;
+  }catch(e){console.warn('Save failed',e);return false;}
+}
+
+// Optional Google Sheet sync
+async function sendToSheet(data){
+  if(SHEET_URL==='YOUR_GOOGLE_APPS_SCRIPT_URL_HERE')return;
+  try{await fetch(SHEET_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});}catch(e){}
+}
 
 // Floating bubbles
 const bg=document.getElementById('bubbleBg');
@@ -290,49 +309,64 @@ function renderCal(){
 function changeMonth(d){calDate.setMonth(calDate.getMonth()+d);renderCal();}
 renderCal();
 
-// Send to Google Sheet
-async function sendToSheet(data){
-  if(SHEET_URL==='YOUR_GOOGLE_APPS_SCRIPT_URL_HERE')return true;
-  try{await fetch(SHEET_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});return true;}catch(e){return false;}
-}
-
-// Main form submit
+// Main booking form
 async function submitForm(){
   const fname=document.getElementById('fname').value.trim();
   const phone=document.getElementById('phone').value.trim();
   if(!fname||!phone){showToast('⚠️ Name & phone are required.');return;}
   const btn=document.getElementById('submitBtn');
-  btn.disabled=true;btn.textContent='Submitting...';
-  await sendToSheet({
-    timestamp:new Date().toLocaleString(),
+  btn.disabled=true;btn.textContent='Saving...';
+  const lead={
+    id:Date.now(),
     name:`${fname} ${document.getElementById('lname').value}`.trim(),
-    phone,email:document.getElementById('email').value.trim(),
+    phone,
+    email:document.getElementById('email').value.trim(),
     service:document.getElementById('service-select').value||'Not specified',
     date:document.getElementById('appt-date').value||'Flexible',
     time:document.getElementById('appt-time').value||'Flexible',
     address:document.getElementById('address').value.trim(),
     notes:document.getElementById('notes').value.trim(),
     callback:document.getElementById('callback').checked?'Yes':'No',
-    source:'Main Form',status:'New'
-  });
-  showToast('🎉 Request submitted! We\'ll confirm within 24 hours.');
+    source:'Main Form',
+    status:'new',
+    ts:new Date().toLocaleString()
+  };
+  const saved=saveLeadLocally(lead);
+  sendToSheet(lead);
+  if(saved){
+    showToast('🎉 Request saved! We\'ll confirm within 24 hours.');
+  } else {
+    showToast('✅ Request received! We\'ll be in touch.');
+  }
   btn.disabled=false;btn.textContent='🔒 Request Appointment';
   ['fname','lname','phone','email','address','notes'].forEach(id=>document.getElementById(id).value='');
   ['service-select','appt-date','appt-time'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('callback').checked=false;
 }
 
-// Modal
+// Quick quote modal
 function openModal(service){document.getElementById('apptModal').classList.add('open');if(service)document.getElementById('m-service').value=service;}
 function closeModal(){document.getElementById('apptModal').classList.remove('open');}
 document.getElementById('apptModal').addEventListener('click',function(e){if(e.target===this)closeModal();});
+
 async function submitModal(){
   const name=document.getElementById('m-name').value.trim();
   const phone=document.getElementById('m-phone').value.trim();
   if(!name||!phone){showToast('⚠️ Name & phone required!');return;}
-  const btn=document.getElementById('modalSubmitBtn');btn.disabled=true;btn.textContent='Sending...';
-  await sendToSheet({timestamp:new Date().toLocaleString(),name,phone,email:'',service:document.getElementById('m-service').value||'Not specified',date:document.getElementById('m-date').value||'Flexible',time:'Flexible',address:'',notes:'',callback:'No',source:'Quick Quote Bubble',status:'New'});
-  closeModal();showToast('🎉 Got it! We\'ll call you shortly.');
+  const btn=document.getElementById('modalSubmitBtn');
+  btn.disabled=true;btn.textContent='Saving...';
+  const lead={
+    id:Date.now(),
+    name,phone,email:'',
+    service:document.getElementById('m-service').value||'Not specified',
+    date:document.getElementById('m-date').value||'Flexible',
+    time:'Flexible',address:'',notes:'',callback:'No',
+    source:'Quick Quote Bubble',status:'new',ts:new Date().toLocaleString()
+  };
+  saveLeadLocally(lead);
+  sendToSheet(lead);
+  closeModal();
+  showToast('🎉 Got it! We\'ll call you shortly.');
   btn.disabled=false;btn.textContent='Submit Request';
   ['m-name','m-phone','m-date'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('m-service').value='';
