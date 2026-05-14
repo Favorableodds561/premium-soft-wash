@@ -162,7 +162,7 @@ tbody td{padding:13px 18px;color:rgba(255,255,255,.85);vertical-align:middle}
       <table>
         <thead>
           <tr>
-            <th>Name</th><th>Contact</th><th>Service</th><th>Date</th>
+            <th>Name</th><th>Contact</th><th>Service</th><th>Date & Time</th>
             <th>Source</th><th>Status</th><th>Notes</th><th>Actions</th>
           </tr>
         </thead>
@@ -264,7 +264,10 @@ function renderLeads(){
         <td class="nc"><strong>${x(l.name)}</strong><span>${x(l.ts||'')}</span></td>
         <td class="cc"><a href="tel:${(l.phone||'').replace(/\D/g,'')}">${x(l.phone||'—')}</a><div class="em">${x(l.email||'')}</div></td>
         <td>${x(l.service||'—')}</td>
-        <td>${x(l.date||'Flexible')}</td>
+        <td>
+          <span style="display:block">${x(l.date||'Flexible')}</span>
+          <span style="font-size:11px;color:var(--blue);font-family:'Rajdhani',sans-serif;letter-spacing:.5px">${x(l.time&&l.time!=='Flexible'?'🕐 '+l.time:l.time||'')}</span>
+        </td>
         <td style="font-size:11px;color:rgba(255,255,255,.4)">${x(l.source||'Manual')}</td>
         <td><select class="ss" style="color:${c};border:1px solid ${c}" onchange="updStat(${i},this.value)">
           <option value="new" ${l.status==='new'?'selected':''}>New</option>
