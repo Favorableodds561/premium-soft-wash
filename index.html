@@ -210,8 +210,12 @@ footer p{font-size:13px;color:rgba(255,255,255,.4);letter-spacing:1px}
         <select id="service-select"><option value="">— Select a Service —</option><option>House Washing</option><option>Roof Cleaning</option><option>Driveway & Concrete</option><option>Commercial Cleaning</option><option>Window Cleaning</option><option>Gutter Cleaning</option><option>Multiple / Not Sure</option></select>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Preferred Date</label><input type="date" id="appt-date"></div>
-        <div class="form-group"><label>Preferred Time</label><select id="appt-time"><option value="">— Select Time —</option><option>8:00 AM – 10:00 AM</option><option>10:00 AM – 12:00 PM</option><option>12:00 PM – 2:00 PM</option><option>2:00 PM – 4:00 PM</option><option>Flexible</option></select></div>
+        <div class="form-group"><label>Preferred Date</label><input type="date" id="appt-date" onchange="updateTimeSlots()"></div>
+        <div class="form-group">
+          <label>Preferred Time</label>
+          <select id="appt-time"><option value="">— Select a date first —</option></select>
+          <span id="time-hint" style="font-size:11px;color:rgba(0,195,255,.7);letter-spacing:1px;margin-top:4px;display:none">🔴 Strikethrough = already booked on this date</span>
+        </div>
       </div>
       <div class="form-group"><label>Property Address</label><input type="text" id="address" placeholder="123 Main St, City, State"></div>
       <div class="form-group"><label>Additional Notes</label><textarea id="notes" placeholder="Property size, specific concerns, etc."></textarea></div>
@@ -405,9 +409,12 @@ function confirmCalDate(){
   if(!pickedDateStr){showToast('⚠️ Please select a date first.');return;}
   // Pre-fill the booking form
   document.getElementById('appt-date').value=pickedDateStr;
+  updateTimeSlots();
   if(pickedSlot){
-    const sel=document.getElementById('appt-time');
-    for(let o of sel.options){if(o.value===pickedSlot||o.text===pickedSlot){sel.value=o.value;break;}}
+    setTimeout(()=>{
+      const sel=document.getElementById('appt-time');
+      for(let o of sel.options){if(o.value===pickedSlot){sel.value=o.value;break;}}
+    },50);
   }
   closeCalModal();
   // Smooth scroll to form
@@ -417,6 +424,71 @@ function confirmCalDate(){
 
 function changeMonth(d){calDate.setMonth(calDate.getMonth()+d);renderCal();}
 renderCal();
+// Init time dropdown on load
+updateTimeSlots();
+
+// ── DYNAMIC TIME SLOTS ──
+const ALL_SLOTS = [
+  '8:00 AM – 10:00 AM',
+  '10:00 AM – 12:00 PM',
+  '12:00 PM – 2:00 PM',
+  '2:00 PM – 4:00 PM'
+];
+
+function getTakenSlots(dateStr){
+  try{
+    const raw=localStorage.getItem(LEADS_KEY);
+    const leads=raw?JSON.parse(raw):[];
+    return new Set(leads.filter(l=>l.date===dateStr&&l.status!=='closed').map(l=>l.time));
+  }catch(e){return new Set();}
+}
+
+function updateTimeSlots(){
+  const dateStr=document.getElementById('appt-date').value;
+  const sel=document.getElementById('appt-time');
+  const hint=document.getElementById('time-hint');
+  sel.innerHTML='';
+
+  if(!dateStr){
+    sel.innerHTML='<option value="">— Select a date first —</option>';
+    hint.style.display='none';
+    return;
+  }
+
+  const taken=getTakenSlots(dateStr);
+  let hasAny=false;
+
+  // Default blank option
+  const blank=document.createElement('option');
+  blank.value='';blank.textContent='— Select a Time —';
+  sel.appendChild(blank);
+
+  ALL_SLOTS.forEach(slot=>{
+    const opt=document.createElement('option');
+    opt.value=slot;
+    if(taken.has(slot)){
+      opt.textContent='🔴 '+slot+' (Booked)';
+      opt.disabled=true;
+      opt.style.color='rgba(255,45,155,0.5)';
+      hasAny=true;
+    } else {
+      opt.textContent='🟢 '+slot;
+    }
+    sel.appendChild(opt);
+  });
+
+  // Always add Flexible
+  const flex=document.createElement('option');
+  flex.value='Flexible';flex.textContent='Flexible';
+  sel.appendChild(flex);
+
+  hint.style.display=hasAny?'block':'none';
+
+  // If a slot was pre-filled from calendar, keep it selected
+  if(pickedSlot&&!taken.has(pickedSlot)){
+    sel.value=pickedSlot;
+  }
+}
 
 // Main booking form
 async function submitForm(){
